@@ -7,10 +7,10 @@ using Microsoft.IdentityModel.Tokens;
 using CarAds.Data;
 using CarAds.Hubs;
 using CarAds.Models;
+using CarAds.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ Controllers + Enum String Support (Fix UserRole)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -20,7 +20,6 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ✅ دیتابیس
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlServer(
@@ -28,14 +27,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     );
 });
 
-// ✅ SignalR
 builder.Services.AddSignalR();
-
-// ✅ HttpClient
 builder.Services.AddHttpClient();
-
-// ✅ Password Hasher
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
+// ✅ سرویس پاک‌سازی پیام‌های تلگرام راس ۱۲ شب
+builder.Services.AddHostedService<TelegramCleanupService>();
 
 var jwt = builder.Configuration.GetSection("Jwt");
 var jwtKey = Encoding.UTF8.GetBytes(jwt["Key"]!);
@@ -59,7 +56,6 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
-    // ✅ برای SignalR (access_token در querystring)
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -75,7 +71,6 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// ✅ CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -99,8 +94,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ✅ پورت - فقط روی لیارا (PORT وجود داره) override میشه
-// لوکال از پورت پیش‌فرض ASP.NET استفاده میکنه (https://localhost:7xxx)
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrEmpty(port))
 {
@@ -109,7 +102,7 @@ if (!string.IsNullOrEmpty(port))
 
 var app = builder.Build();
 
-// ✅ اجرای خودکار Migration در استارت (Fail-safe تا اپ کرش نکنه و 502 نده)
+// ✅ Migration خودکار
 try
 {
     using (var scope = app.Services.CreateScope())
@@ -120,7 +113,32 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogError(ex, "❌ Database.Migrate failed. App will continue to run (check DB connection).");
+    app.Logger.LogError(ex, "❌ Database.Migrate failed.");
+}
+
+// ✅ ساخت جدول TelegramMessages اگه وجود نداشته باشه
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.ExecuteSqlRaw(@"
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TelegramMessages')
+        CREATE TABLE TelegramMessages (
+            Id INT IDENTITY(1,1) PRIMARY KEY,
+            MessageId BIGINT NOT NULL,
+            ChatId BIGINT NOT NULL,
+            Text NVARCHAR(MAX) NOT NULL DEFAULT '',
+            FromUsername NVARCHAR(255) NULL,
+            FromFirstName NVARCHAR(255) NULL,
+            ReceivedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            TelegramLink NVARCHAR(500) NOT NULL DEFAULT ''
+        )
+    ");
+    app.Logger.LogInformation("✅ TelegramMessages table ready");
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "❌ TelegramMessages table creation failed");
 }
 
 try
@@ -129,15 +147,14 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogError(ex, "❌ DbSeeder.SeedAsync failed. App will continue to run.");
+    app.Logger.LogError(ex, "❌ DbSeeder.SeedAsync failed.");
 }
 
-// ✅ Swagger همیشه فعال
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "CarAds API v1");
-    c.RoutePrefix = "swagger"; // ✅ آدرس: http://localhost:5197/swagger
+    c.RoutePrefix = "swagger";
 });
 
 app.UseStaticFiles();

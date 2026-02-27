@@ -12,6 +12,7 @@ namespace CarAds.Data
         public DbSet<CarAd> CarAds => Set<CarAd>();
         public DbSet<UserBioItem> UserBioItems => Set<UserBioItem>();
         public DbSet<AdView> AdViews => Set<AdView>(); // ✅
+        public DbSet<TelegramMessage> TelegramMessages => Set<TelegramMessage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
