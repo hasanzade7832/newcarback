@@ -14,7 +14,12 @@ public class TelegramController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IHubContext<CarAdHub> _hub;
+
+    // گروه مجاز
     private const long AllowedChatId = -1002027760235;
+
+    // سقف پیام‌های نگهداری/نمایش
+    private const int MaxKeep = 5000;
 
     public TelegramController(AppDbContext db, IHubContext<CarAdHub> hub)
     {
@@ -82,7 +87,23 @@ public class TelegramController : ControllerBase
             _db.TelegramMessages.Add(msg);
             await _db.SaveChangesAsync();
 
-            // ارسال real-time به همه کاربران سایت
+            // ✅ همیشه فقط 5000 پیام آخر نگه دار (تا DB بزرگ نشه) - فقط برای همین گروه
+            var overIds = await _db.TelegramMessages
+                .Where(m => m.ChatId == AllowedChatId)
+                .OrderByDescending(m => m.ReceivedAt)
+                .ThenByDescending(m => m.Id)
+                .Skip(MaxKeep)
+                .Select(m => m.Id)
+                .ToListAsync();
+
+            if (overIds.Count > 0)
+            {
+                _db.TelegramMessages.RemoveRange(overIds.Select(id => new TelegramMessage { Id = id }));
+                await _db.SaveChangesAsync();
+            }
+
+            // ✅ ارسال real-time به همه کاربران سایت
+            // نکته مهم: receivedAt را ISO با Z می‌فرستیم تا مشکل اختلاف زمان بعد از refresh حل شود
             await _hub.Clients.All.SendAsync("TelegramMessageReceived", new
             {
                 id = msg.Id,
@@ -90,7 +111,7 @@ public class TelegramController : ControllerBase
                 text = msg.Text,
                 fromUsername = msg.FromUsername,
                 fromFirstName = msg.FromFirstName,
-                receivedAt = msg.ReceivedAt,
+                receivedAt = msg.ReceivedAt.ToUniversalTime().ToString("O"),
                 telegramLink = msg.TelegramLink
             });
 
@@ -103,14 +124,19 @@ public class TelegramController : ControllerBase
         }
     }
 
-    // ✅ پیام‌های امروز
-    [HttpGet("today")]
-    public async Task<IActionResult> GetToday()
+    // ✅ آخرین پیام‌ها (5000 تا)
+    [HttpGet("latest")]
+    public async Task<IActionResult> GetLatest([FromQuery] int take = 5000)
     {
-        var todayUtc = DateTime.UtcNow.Date;
-        var msgs = await _db.TelegramMessages
-            .Where(m => m.ReceivedAt >= todayUtc)
+        if (take < 1) take = 1;
+        if (take > MaxKeep) take = MaxKeep;
+
+        // خروجی جدید→قدیم (فرانت خودش مرتب می‌کند)
+        var list = await _db.TelegramMessages
+            .Where(m => m.ChatId == AllowedChatId)
             .OrderByDescending(m => m.ReceivedAt)
+            .ThenByDescending(m => m.Id)
+            .Take(take)
             .Select(m => new
             {
                 id = m.Id,
@@ -118,7 +144,32 @@ public class TelegramController : ControllerBase
                 text = m.Text,
                 fromUsername = m.FromUsername,
                 fromFirstName = m.FromFirstName,
-                receivedAt = m.ReceivedAt,
+                receivedAt = m.ReceivedAt.ToUniversalTime().ToString("O"),
+                telegramLink = m.TelegramLink
+            })
+            .ToListAsync();
+
+        return Ok(list);
+    }
+
+    // ✅ پیام‌های امروز (قدیمی → جدید) (فعلاً نگه داشتیم)
+    [HttpGet("today")]
+    public async Task<IActionResult> GetToday()
+    {
+        var todayUtc = DateTime.UtcNow.Date;
+
+        var msgs = await _db.TelegramMessages
+            .Where(m => m.ChatId == AllowedChatId && m.ReceivedAt >= todayUtc)
+            .OrderBy(m => m.ReceivedAt)
+            .ThenBy(m => m.Id)
+            .Select(m => new
+            {
+                id = m.Id,
+                messageId = m.MessageId,
+                text = m.Text,
+                fromUsername = m.FromUsername,
+                fromFirstName = m.FromFirstName,
+                receivedAt = m.ReceivedAt.ToUniversalTime().ToString("O"),
                 telegramLink = m.TelegramLink
             })
             .ToListAsync();

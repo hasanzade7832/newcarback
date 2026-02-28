@@ -15,15 +15,29 @@ public class TelegramCleanupService : BackgroundService
         _logger = logger;
     }
 
+    private static TimeZoneInfo GetTehranTimeZone()
+    {
+        // روی لینوکس/اوبونتو معمولاً همین ID درست است
+        return TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran");
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var tehranTz = GetTehranTimeZone();
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = DateTime.UtcNow;
-            var nextMidnight = now.Date.AddDays(1);
-            var delay = nextMidnight - now;
+            var nowUtc = DateTime.UtcNow;
+            var nowTehran = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, tehranTz);
 
-            _logger.LogInformation("⏰ Telegram cleanup scheduled in {delay}", delay);
+            // نیمه شب تهران
+            var nextMidnightTehran = nowTehran.Date.AddDays(1);
+            var nextMidnightUtc = TimeZoneInfo.ConvertTimeToUtc(nextMidnightTehran, tehranTz);
+
+            var delay = nextMidnightUtc - nowUtc;
+            if (delay < TimeSpan.Zero) delay = TimeSpan.FromSeconds(5);
+
+            _logger.LogInformation("⏰ Telegram cleanup scheduled for Tehran 00:00. Delay={delay}", delay);
             await Task.Delay(delay, stoppingToken);
 
             try
@@ -31,12 +45,15 @@ public class TelegramCleanupService : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                var yesterday = DateTime.UtcNow.Date;
+                // مرز شروع امروز تهران -> UTC
+                var todayTehran = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tehranTz).Date;
+                var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(todayTehran, tehranTz);
+
                 var deleted = await db.TelegramMessages
-                    .Where(m => m.ReceivedAt < yesterday)
+                    .Where(m => m.ReceivedAt < todayStartUtc)
                     .ExecuteDeleteAsync(stoppingToken);
 
-                _logger.LogInformation("🗑️ Telegram cleanup: {deleted} messages deleted", deleted);
+                _logger.LogInformation("🗑️ Telegram cleanup (Tehran): {deleted} messages deleted", deleted);
             }
             catch (Exception ex)
             {
