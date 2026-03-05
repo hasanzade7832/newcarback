@@ -30,6 +30,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddHostedService<AdCleanupService>();
 
 // ✅ سرویس پاک‌سازی پیام‌های تلگرام راس ۱۲ شب
 builder.Services.AddHostedService<TelegramCleanupService>();
@@ -84,6 +85,8 @@ builder.Services.AddCors(options =>
                 "https://k1khodro-swagger.liara.run",
                 "https://k1khodro.com",
                 "https://www.k1khodro.com",
+                "https://k1khodro.ir",
+                "https://www.k1khodro.ir",
                 "https://api.k1khodro.com",
                 "http://k1khodro.com",
                 "http://www.k1khodro.com"

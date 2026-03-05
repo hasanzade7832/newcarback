@@ -36,13 +36,17 @@ namespace CarAds.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto dto)
         {
+            // چک کردن تکراری بودن شماره تلفن
             if (_context.Users.Any(x => x.Phone == dto.Phone))
                 return BadRequest("شماره تلفن تکراری است");
 
+            // چک کردن تکراری بودن نام کاربری
             if (_context.Users.Any(x => x.Username == dto.Username))
                 return BadRequest("نام کاربری تکراری است");
 
-            if (_context.Users.Any(x => x.Email == dto.Email))
+            // ✅ چک کردن تکراری بودن ایمیل فقط اگر وارد شده باشد
+            if (!string.IsNullOrWhiteSpace(dto.Email) &&
+                _context.Users.Any(x => x.Email == dto.Email))
                 return BadRequest("ایمیل تکراری است");
 
             var user = new User
@@ -51,13 +55,15 @@ namespace CarAds.Controllers
                 LastName = dto.LastName,
                 Username = dto.Username,
                 Phone = dto.Phone,
-                Email = dto.Email,
+                Email = dto.Email, // ✅ اجازه می‌دهد خالی باشد
+                Address = dto.Address,
+                ShowroomName = dto.ShowroomName,
+                City = dto.City, // ✅ افزودن City
                 Role = UserRole.User,
                 CreatedAt = DateTime.UtcNow
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
-
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -68,6 +74,21 @@ namespace CarAds.Controllers
             });
         }
 
+        // در AuthController اضافه کنید:
+        [HttpGet("showrooms")]
+        public async Task<IActionResult> GetShowrooms()
+        {
+            var showrooms = await _context.Users
+                .Select(u => new
+                {
+                    u.ShowroomName,
+                    u.City
+                })
+                .ToListAsync();
+
+            return Ok(showrooms);
+        }
+
         // =========================
         // Login + JWT (Username + Password)
         // =========================
@@ -76,7 +97,6 @@ namespace CarAds.Controllers
         {
             var user = await _context.Users
                 .FirstOrDefaultAsync(x => x.Username == dto.Username);
-
             if (user == null)
                 return Unauthorized("کاربر یافت نشد");
 
@@ -85,7 +105,6 @@ namespace CarAds.Controllers
                 user.PasswordHash,
                 dto.Password
             );
-
             if (verify == PasswordVerificationResult.Failed)
                 return Unauthorized("رمز عبور اشتباه است");
 
@@ -101,9 +120,7 @@ namespace CarAds.Controllers
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSettings["Key"]!)
             );
-
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
             var token = new JwtSecurityToken(
                 issuer: jwtSettings["Issuer"],
                 audience: jwtSettings["Audience"],
@@ -113,7 +130,6 @@ namespace CarAds.Controllers
                 ),
                 signingCredentials: creds
             );
-
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
             return Ok(new

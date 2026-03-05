@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace carbank.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260226210839_remove-tel")]
-    partial class removetel
+    [Migration("20260304211940_upload1")]
+    partial class upload1
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -84,8 +84,17 @@ namespace carbank.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("FlashEndTime")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Gearbox")
                         .HasColumnType("int");
+
+                    b.Property<bool>("HasFlash")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Images")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("InsuranceMonths")
                         .HasColumnType("int");
@@ -130,6 +139,60 @@ namespace carbank.Migrations
                     b.ToTable("CarAds");
                 });
 
+            modelBuilder.Entity("CarAds.Models.FlashSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DefaultDurationMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(15);
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FlashSettings");
+                });
+
+            modelBuilder.Entity("CarAds.Models.TelegramMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("ChatId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FromFirstName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FromUsername")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TelegramLink")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TelegramMessages");
+                });
+
             modelBuilder.Entity("CarAds.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -138,11 +201,20 @@ namespace carbank.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -168,6 +240,11 @@ namespace carbank.Migrations
                     b.Property<int>("Role")
                         .HasColumnType("int");
 
+                    b.Property<string>("ShowroomName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -176,7 +253,8 @@ namespace carbank.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.HasIndex("Phone")
                         .IsUnique();
@@ -233,6 +311,26 @@ namespace carbank.Migrations
                     b.HasIndex("UserId", "GroupKey");
 
                     b.ToTable("UserBioItems");
+                });
+
+            modelBuilder.Entity("WebsiteDescription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
+
+                    b.ToTable("WebsiteDescriptions");
                 });
 
             modelBuilder.Entity("CarAds.Models.AdView", b =>

@@ -37,7 +37,10 @@ namespace CarAds.Controllers
                     u.LastName.Contains(q) ||
                     u.Username.Contains(q) ||
                     u.Phone.Contains(q) ||
-                    u.Email.Contains(q)
+                    u.Email.Contains(q) ||
+                    u.Address.Contains(q) ||      // اضافه شد برای سرچ آدرس
+                    u.City.Contains(q) ||          // اضافه شد برای سرش شهر
+                    u.ShowroomName.Contains(q)      // اضافه شد برای سرچ نام نمایشگاه
                 );
             }
 
@@ -51,6 +54,9 @@ namespace CarAds.Controllers
                     u.Username,
                     u.Phone,
                     u.Email,
+                    u.Address,
+                    u.City,        // ✅ اضافه شد برای نمایش در API
+                    u.ShowroomName, // ✅ اضافه شد برای نمایش در API
                     role = u.Role.ToString(),
                     u.CreatedAt
                 })
@@ -73,7 +79,9 @@ namespace CarAds.Controllers
 
             // چک تکراری‌ها
             var exists = await _context.Users.AnyAsync(u =>
-                u.Username == dto.Username || u.Phone == dto.Phone || u.Email == dto.Email
+                u.Username == dto.Username ||
+                u.Phone == dto.Phone ||
+                u.Email == dto.Email
             );
 
             if (exists)
@@ -86,12 +94,14 @@ namespace CarAds.Controllers
                 Username = dto.Username,
                 Phone = dto.Phone,
                 Email = dto.Email,
-                Role = dto.Role, // User/Admin
-                CreatedAt = DateTime.UtcNow
+                Role = dto.Role,
+                CreatedAt = DateTime.UtcNow,
+                ShowroomName = dto.ShowroomName?.Trim() ?? string.Empty, // مدیریت مقدار خالی
+                Address = dto.Address?.Trim() ?? string.Empty,
+                City = dto.City?.Trim() ?? string.Empty                // ✅ مقدار City هم اضافه شد
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password.Trim());
-
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -99,7 +109,7 @@ namespace CarAds.Controllers
         }
 
         // PUT: /api/admin/users/{id}
-        // ✅ فقط اطلاعات اصلی را ویرایش می‌کند (Role داخل UpdateUserDto نیست)
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
@@ -115,73 +125,41 @@ namespace CarAds.Controllers
             var exists = await _context.Users.AnyAsync(u =>
                 u.Id != id && (u.Username == dto.Username || u.Phone == dto.Phone || u.Email == dto.Email)
             );
+
             if (exists)
                 return BadRequest("نام کاربری یا شماره یا ایمیل تکراری است.");
 
+            // به‌روزرسانی فیلدهای اصلی
             user.FirstName = dto.FirstName.Trim();
             user.LastName = dto.LastName.Trim();
             user.Username = dto.Username.Trim();
             user.Phone = dto.Phone.Trim();
             user.Email = dto.Email.Trim();
 
+            // === مدیریت فیلدهای جدید (City, Address, ShowroomName) در حالت ویرایش ===
+            // اگر مقدار در DTO موجود باشد، آن را به‌روزرسانی می‌کنیم.
+            // اگر مقدار null باشد، آن را به null در دیتابیس تبدیل می‌کنیم (برای فیلدهای Nullable).
+            // اگر مقدار خالی باشد، می‌توان آن را خالی نگه داشت یا Null کرد (بسته به استراتژی شما).
+            // اینجا استراتژی "اگر ارسال شد (حتی اگر خالی) ذخیره شود" را پیاده‌سازی می‌کنیم.
+
+            if (dto.ShowroomName != null)
+            {
+                user.ShowroomName = dto.ShowroomName.Trim();
+            }
+
+            if (dto.Address != null)
+            {
+                user.Address = dto.Address.Trim();
+            }
+
+            if (dto.City != null) // ✅ City هم اضافه شد
+            {
+                user.City = dto.City.Trim();
+            }
+            // === پایان تغییرات ===
+
             await _context.SaveChangesAsync();
             return Ok("کاربر ویرایش شد");
-        }
-
-        // PUT: /api/admin/users/{id}/role
-        // ✅ (اختیاری ولی کاربردی) تغییر نقش فقط توسط سوپرادمین
-        public class UpdateUserRoleDto
-        {
-            public UserRole Role { get; set; } = UserRole.User;
-        }
-
-        [HttpPut("{id:int}/role")]
-        public async Task<IActionResult> UpdateRole(int id, [FromBody] UpdateUserRoleDto dto)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
-            if (user == null)
-                return NotFound("کاربر یافت نشد");
-
-            if (user.Role == UserRole.SuperAdmin)
-                return BadRequest("تغییر نقش SuperAdmin مجاز نیست.");
-
-            if (dto.Role == UserRole.SuperAdmin)
-                return BadRequest("قرار دادن نقش SuperAdmin مجاز نیست.");
-
-            user.Role = dto.Role;
-            await _context.SaveChangesAsync();
-
-            return Ok("نقش کاربر تغییر کرد");
-        }
-
-        // DELETE: /api/admin/users/{id}
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var currentUserIdStr = User.FindFirst("userId")?.Value;
-            int.TryParse(currentUserIdStr, out var currentUserId);
-
-            if (currentUserId == id)
-                return BadRequest("امکان حذف خودتان وجود ندارد.");
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
-            if (user == null)
-                return NotFound("کاربر یافت نشد");
-
-            if (user.Role == UserRole.SuperAdmin)
-                return BadRequest("حذف SuperAdmin مجاز نیست.");
-
-            // اگر حذف وابستگی‌ها لازم داری:
-            var bios = await _context.UserBioItems.Where(b => b.UserId == id).ToListAsync();
-            if (bios.Count > 0) _context.UserBioItems.RemoveRange(bios);
-
-            var ads = await _context.CarAds.Where(a => a.UserId == id).ToListAsync();
-            if (ads.Count > 0) _context.CarAds.RemoveRange(ads);
-
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return Ok("کاربر حذف شد");
         }
     }
 }

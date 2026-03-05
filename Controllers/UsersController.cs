@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using CarAds.Models;
 
 namespace CarAds.Controllers
 {
@@ -14,6 +15,21 @@ namespace CarAds.Controllers
         public UsersController(AppDbContext context)
         {
             _context = context;
+        }
+
+        // ✅ اندپوینت جدید: دریافت اطلاعات کاربر فعلی
+        [HttpGet("me")]
+        [Authorize]
+        public IActionResult GetCurrentUser()
+        {
+            var userIdStr = User.FindFirst("userId")?.Value;
+            if (string.IsNullOrWhiteSpace(userIdStr))
+                return Unauthorized("Invalid token");
+
+            if (!int.TryParse(userIdStr, out int userId))
+                return Unauthorized("Invalid user ID format");
+
+            return Ok(new { id = userId });
         }
 
         // پروفایل عمومی کاربر (برای صفحه نمایش کاربر)
@@ -29,13 +45,15 @@ namespace CarAds.Controllers
                     x.FirstName,
                     x.LastName,
                     x.Username,
-                    x.Phone,   // اگر نمی‌خوای عمومی باشه، بعداً حذفش می‌کنیم
-                    x.Email,   // اگر نمی‌خوای عمومی باشه، بعداً حذفش می‌کنیم
+                    x.Phone,
+                    x.Email,
                     role = x.Role.ToString(),
-                    x.CreatedAt
+                    x.CreatedAt,
+                    x.ShowroomName,
+                    x.Address,
+                    x.City
                 })
                 .FirstOrDefaultAsync();
-
             if (user == null) return NotFound("کاربر یافت نشد");
             return Ok(user);
         }

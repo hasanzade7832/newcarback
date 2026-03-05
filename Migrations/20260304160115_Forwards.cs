@@ -6,39 +6,37 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace carbank.Migrations
 {
     /// <inheritdoc />
-    public partial class first : Migration
+    public partial class Forwards : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "TelegramBotStates",
+                name: "FlashSettings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    LastUpdateId = table.Column<long>(type: "bigint", nullable: false),
-                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    DefaultDurationMinutes = table.Column<int>(type: "int", nullable: false, defaultValue: 15)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TelegramBotStates", x => x.Id);
+                    table.PrimaryKey("PK_FlashSettings", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
                 name: "TelegramMessages",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TelegramMessageId = table.Column<long>(type: "bigint", nullable: false),
-                    ChatId = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
-                    ChatUsername = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
-                    SenderName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Text = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
-                    SentAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Link = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    MessageId = table.Column<long>(type: "bigint", nullable: false),
+                    ChatId = table.Column<long>(type: "bigint", nullable: false),
+                    Text = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FromUsername = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FromFirstName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReceivedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TelegramLink = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -55,14 +53,30 @@ namespace carbank.Migrations
                     LastName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Username = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Role = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ShowroomName = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Address = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: false),
+                    City = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "WebsiteDescriptions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_WebsiteDescriptions", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -88,6 +102,8 @@ namespace carbank.Migrations
                     ApprovedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     RejectedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ViewCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    HasFlash = table.Column<bool>(type: "bit", nullable: false),
+                    FlashEndTime = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ApprovedByAdminId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
@@ -174,17 +190,6 @@ namespace carbank.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TelegramMessages_ChatId_TelegramMessageId",
-                table: "TelegramMessages",
-                columns: new[] { "ChatId", "TelegramMessageId" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TelegramMessages_SentAtUtc",
-                table: "TelegramMessages",
-                column: "SentAtUtc");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_UserBioItems_UserId",
                 table: "UserBioItems",
                 column: "UserId");
@@ -198,7 +203,8 @@ namespace carbank.Migrations
                 name: "IX_Users_Email",
                 table: "Users",
                 column: "Email",
-                unique: true);
+                unique: true,
+                filter: "[Email] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Phone",
@@ -211,6 +217,12 @@ namespace carbank.Migrations
                 table: "Users",
                 column: "Username",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WebsiteDescriptions_Id",
+                table: "WebsiteDescriptions",
+                column: "Id",
+                unique: true);
         }
 
         /// <inheritdoc />
@@ -220,13 +232,16 @@ namespace carbank.Migrations
                 name: "AdViews");
 
             migrationBuilder.DropTable(
-                name: "TelegramBotStates");
+                name: "FlashSettings");
 
             migrationBuilder.DropTable(
                 name: "TelegramMessages");
 
             migrationBuilder.DropTable(
                 name: "UserBioItems");
+
+            migrationBuilder.DropTable(
+                name: "WebsiteDescriptions");
 
             migrationBuilder.DropTable(
                 name: "CarAds");

@@ -19,18 +19,18 @@ namespace CarAds.Models
         public string ContactPhone { get; set; } = null!;
         // فعلاً همه آگهی‌ها Approved هستند
         public CarAdStatus Status { get; set; } = CarAdStatus.Approved;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // ✅ برای فیلتر ۲۴ ساعته
         // فعلاً نگه می‌داریم (بعداً اگر خواستی پاکسازی می‌کنیم)
         public DateTime? ApprovedAt { get; set; }
         public DateTime? RejectedAt { get; set; }
-
         // ✅ شمارنده بازدید (ذخیره در دیتابیس)
         public int ViewCount { get; set; } = 0;
-
+        // ✅ فیلدهای جدید برای فوروارد
+        public bool HasFlash { get; set; } = false;
+        public DateTime? FlashEndTime { get; set; }
         public User User { get; set; } = null!;
         public int? ApprovedByAdminId { get; set; }
         public User? ApprovedByAdmin { get; set; }
-
         // Navigation
         public ICollection<AdView> AdViews { get; set; } = new List<AdView>();
     }
